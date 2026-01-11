@@ -23,11 +23,21 @@ public class ImGuiController : IDisposable
     private int _shader;
     private int _shaderFontTextureLocation;
     private int _shaderProjectionMatrixLocation;
+    
+    private int _gradientShader;
+    private int _gradientShaderFontTextureLocation;
+    private int _gradientShaderProjectionMatrixLocation;
+    private int _gradientShaderTimeLocation;
+    private int _gradientShaderModeLocation;
 
     private int _windowWidth;
     private int _windowHeight;
 
     private System.Numerics.Vector2 _scaleFactor = System.Numerics.Vector2.One;
+    
+    private float _time = 0f;
+    private bool _useGradientShader = true; // Default to false for safety
+    private int _gradientMode = 3; // 0=horizontal, 1=vertical, 2=diagonal, 3=rainbow wave
 
     public ImGuiController(int width, int height)
     {
@@ -38,7 +48,21 @@ public class ImGuiController : IDisposable
         ImGui.SetCurrentContext(context);
 
         var io = ImGui.GetIO();
-        io.Fonts.AddFontDefault();
+        
+        // Load Source Han Sans font for Chinese support
+        // 加载思源黑体以支持中文显示
+        string fontPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "SourceHanSansSC-Regular-2.otf");
+        if (File.Exists(fontPath))
+        {
+            io.Fonts.AddFontFromFileTTF(fontPath, 18.0f, null, io.Fonts.GetGlyphRangesChineseFull());
+        }
+        else
+        {
+            // Fallback to default font if Source Han Sans is not found
+            io.Fonts.AddFontDefault();
+            Console.WriteLine($"Warning: Font file not found at {fontPath}, using default font");
+        }
+        
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
 
         CreateDeviceResources();
@@ -103,6 +127,27 @@ void main()
         _shader = CreateProgram("ImGui", vertexSource, fragmentSource);
         _shaderProjectionMatrixLocation = GL.GetUniformLocation(_shader, "projection_matrix");
         _shaderFontTextureLocation = GL.GetUniformLocation(_shader, "in_fontTexture");
+
+        // Create gradient shader from Resources folder
+        string gradientVertPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "text_gradient.vert");
+        string gradientFragPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "text_gradient.frag");
+        
+        if (File.Exists(gradientVertPath) && File.Exists(gradientFragPath))
+        {
+            string gradientVertSource = File.ReadAllText(gradientVertPath);
+            string gradientFragSource = File.ReadAllText(gradientFragPath);
+            
+            _gradientShader = CreateProgram("ImGuiGradient", gradientVertSource, gradientFragSource);
+            _gradientShaderProjectionMatrixLocation = GL.GetUniformLocation(_gradientShader, "projection_matrix");
+            _gradientShaderFontTextureLocation = GL.GetUniformLocation(_gradientShader, "in_fontTexture");
+            _gradientShaderTimeLocation = GL.GetUniformLocation(_gradientShader, "time");
+            _gradientShaderModeLocation = GL.GetUniformLocation(_gradientShader, "gradientMode");
+        }
+        else
+        {
+            Console.WriteLine("Warning: Gradient shader files not found, using default shader");
+            _useGradientShader = false;
+        }
 
         // Setup vertex attributes
         GL.BindVertexArray(_vertexArray);
@@ -187,11 +232,39 @@ void main()
 
     public void Update(GameWindow wnd, float deltaSeconds)
     {
+        _time += deltaSeconds;
         SetPerFrameImGuiData(deltaSeconds);
         UpdateImGuiInput(wnd);
 
-        // Start a new ImGui frame
-        ImGui.NewFrame();
+        // Start a new ImGui frame (must be called before any ImGui commands)
+        try
+        {
+            ImGui.NewFrame();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ImGui.NewFrame exception: {ex.Message}");
+        }
+    }
+    
+    public void SetGradientMode(int mode)
+    {
+        _gradientMode = mode;
+    }
+    
+    public void ToggleGradientShader()
+    {
+        _useGradientShader = !_useGradientShader;
+    }
+    
+    public bool IsGradientShaderEnabled()
+    {
+        return _useGradientShader;
+    }
+    
+    public int GetGradientMode()
+    {
+        return _gradientMode;
     }
 
     private void SetPerFrameImGuiData(float deltaSeconds)
@@ -281,8 +354,16 @@ void main()
 
     public void Render()
     {
-        ImGui.Render();
-        RenderImDrawData(ImGui.GetDrawData());
+        try
+        {
+            ImGui.Render();
+            RenderImDrawData(ImGui.GetDrawData());
+        }
+        catch (Exception ex)
+        {
+            // Handle ImGui rendering exceptions gracefully
+            Console.WriteLine($"ImGui.Render exception: {ex.Message}");
+        }
     }
 
     private void RenderImDrawData(ImDrawDataPtr drawData)
@@ -353,9 +434,21 @@ void main()
             -1.0f,
             1.0f);
 
-        GL.UseProgram(_shader);
-        GL.UniformMatrix4(_shaderProjectionMatrixLocation, false, ref mvp);
-        GL.Uniform1(_shaderFontTextureLocation, 0);
+        // Choose shader based on settings
+        int currentShader = (_useGradientShader && _gradientShader != 0) ? _gradientShader : _shader;
+        int currentProjectionLocation = (_useGradientShader && _gradientShader != 0) ? _gradientShaderProjectionMatrixLocation : _shaderProjectionMatrixLocation;
+        int currentFontTextureLocation = (_useGradientShader && _gradientShader != 0) ? _gradientShaderFontTextureLocation : _shaderFontTextureLocation;
+
+        GL.UseProgram(currentShader);
+        GL.UniformMatrix4(currentProjectionLocation, false, ref mvp);
+        GL.Uniform1(currentFontTextureLocation, 0);
+        
+        // Set gradient shader uniforms if using gradient shader
+        if (_useGradientShader && _gradientShader != 0)
+        {
+            GL.Uniform1(_gradientShaderTimeLocation, _time);
+            GL.Uniform1(_gradientShaderModeLocation, _gradientMode);
+        }
 
         GL.BindVertexArray(_vertexArray);
 
@@ -438,6 +531,11 @@ void main()
         GL.DeleteBuffer(_indexBuffer);
         GL.DeleteTexture(_fontTexture);
         GL.DeleteProgram(_shader);
+        
+        if (_gradientShader != 0)
+        {
+            GL.DeleteProgram(_gradientShader);
+        }
 
         _disposed = true;
     }

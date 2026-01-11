@@ -3,11 +3,13 @@ using SharpFAI.Framework;
 
 namespace SharpFAI_Player.Framework;
 
-public class PlayerFloor
+public class PlayerFloor : IDisposable
 {
     private GLMesh mesh;
     public readonly Floor floor;
     public bool isHit;
+    private bool _disposed;
+    
     public PlayerFloor(Floor floor)
     {
         this.floor = floor;
@@ -32,5 +34,15 @@ public class PlayerFloor
     {
         if (isHit) return;
         mesh.Render(shader);
+    }
+    
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+            
+        mesh?.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }
