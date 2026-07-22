@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL4;
 using SharpFAI.Editor.Core.Framework.Graphics;
@@ -152,18 +152,18 @@ void main()
     }
 
     /// <summary>
-    /// Emit a particle / 发射一个粒�?
+    /// Emit a particle / 发射一个粒子
     /// </summary>
     public void EmitParticle(Vector2 position, Vector2 velocity, Color color, float size, float life)
     {
-        // 转换 Color �?Vector4
+        // 转换 Color 为 Vector4
         Vector4 colorVec4 = new Vector4(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f);
         EmitParticle(position, velocity, colorVec4, size, life);
     }
 
     /// <summary>
-    /// Emit a particle with Vector4 color (optimized) / 发射粒子，使�?Vector4 颜色（优化版�?
-    /// 优化：使�?Vector4 颜色避免转换开销，使用属性访�?IsAlive
+    /// Emit a particle with Vector4 color (optimized) / 发射粒子，使用 Vector4 颜色（优化版）
+    /// 优化：使用 Vector4 颜色避免转换开销，使用属性访问 IsAlive
     /// </summary>
     public void EmitParticle(Vector2 position, Vector2 velocity, Vector4 color, float size, float life)
     {
@@ -185,7 +185,7 @@ void main()
             found = _nextEmitIndex;
 
         bool wasAlive = _particles[found].IsAlive;
-        // 使用优化�?Vector4 版本初始�?
+        // 使用优化的 Vector4 版本初始化
         _particles[found].Reset(position, velocity, color, size, life);
         if (!wasAlive)
             _activeCount++;
@@ -194,7 +194,7 @@ void main()
     }
 
     /// <summary>
-    /// Update all particles / 更新所有粒�?
+    /// Update all particles / 更新所有粒子
     /// </summary>
     public void Update(float deltaTime)
     {
@@ -214,8 +214,8 @@ void main()
     }
 
     /// <summary>
-    /// Render all active particles / 渲染所有活跃粒�?
-    /// 优化：使用统一�?Vector4 颜色，避免多次字段访�?
+    /// Render all active particles / 渲染所有活跃粒子
+    /// 优化：使用统一的 Vector4 颜色，避免多次字段访问
     /// </summary>
     public void Render(ICamera camera, float time)
     {
@@ -289,7 +289,7 @@ void main()
     }
 
     /// <summary>
-    /// Clear all particles / 清除所有粒�?
+    /// Clear all particles / 清除所有粒子
     /// </summary>
     public void Clear()
     {
@@ -325,7 +325,6 @@ void main()
         _disposed = true;
     }
 }
-
 
 
 

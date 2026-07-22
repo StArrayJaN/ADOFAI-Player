@@ -1,44 +1,30 @@
 using System;
 using SharpFAI.Editor.Core;
-using SharpFAI.Editor.Platform.Desktop;
+using SharpFAI.Editor.Core.Application;
+using SharpFAI.Editor.Core.Framework.Assets;
+using SharpFAI.Editor.Core.Platform.Desktop;
+using SharpFAI.Editor.Core.Platform.System;
 
-namespace SharpFAI
+namespace SharpFAI.Editor.Platform.Linux
 {
     class Program
     {
         static void Main(string[] args)
         {
-            var mode = ParseMode(args);
             Console.WriteLine($"SharpFAI - Linux");
-            Console.WriteLine($"Mode: {mode}\n");
+            Console.WriteLine($"Mode: Editor with Player\n");
+
+            // Initialize asset manager
+            AssetManager.Initialize(new DesktopAssetManager());
 
             // Linux 平台特定的实现
-            var graphicsContext = new DesktopGraphicsContext("SharpFAI - Linux", 1280, 720);
+            var graphicsContext = new DesktopGraphicsContext($"SharpFAI - {Environment.OSVersion.GetSystemName()}");
             var audioProvider = new DesktopAudioProvider();
 
-            using (var app = new SharpFAIApplication(mode))
+            using (var app = new MainApplication(audioProvider, graphicsContext, null))
             {
-                // 使用平台特定的实现初始化应用程序
-                app.Initialize(graphicsContext, audioProvider);
-                app.Run();
+                app.Start();
             }
-        }
-
-        static SharpFAIApplication.ApplicationMode ParseMode(string[] args)
-        {
-            foreach (var arg in args)
-            {
-                if (arg.StartsWith("--mode="))
-                {
-                    return arg.Substring("--mode=".Length).ToLowerInvariant() switch
-                    {
-                        "player" => SharpFAIApplication.ApplicationMode.PlayerOnly,
-                        "editor" => SharpFAIApplication.ApplicationMode.EditorOnly,
-                        _ => SharpFAIApplication.ApplicationMode.EditorOnly
-                    };
-                }
-            }
-            return SharpFAIApplication.ApplicationMode.EditorOnly;
         }
     }
 }

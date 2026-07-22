@@ -15,7 +15,17 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SharpFAI.Editor.Core\SharpFAI.Editor.Core.csproj" />
-    <ProjectReference Include="..\Abstractions\SharpFAI.Editor.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\SharpFAI.Editor.Resources\**">
+      <Link>Resources\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />
   </ItemGroup>
 
 </Project>

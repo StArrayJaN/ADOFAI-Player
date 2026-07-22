@@ -1,22 +1,24 @@
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using SharpFAI_Player.Framework;
+using SharpFAI.Editor.Core.Framework.Assets;
+using SharpFAI.Editor.Core.Framework.Audio;
 using SharpFAI.Editor.Core.Framework.Graphics;
 using SharpFAI.Editor.Core.Models;
+using SharpFAI.Editor.Core.Platform.FileProvider;
 using SharpFAI.Editor.Core.UI;
 using SharpFAI.Editor.Core.Util;
-using SharpFAI.Editor.Platform.Native;
 using SharpFAI.Events;
 using SharpFAI.Framework;
 using SharpFAI.Serialization;
 using SharpFAI.Util;
 
-namespace SharpFAI_Player;
+namespace SharpFAI.Editor.Core.Player;
 #pragma warning disable all
 public class MainPlayer: GameWindow, IPlayer
 {
@@ -44,6 +46,13 @@ public class MainPlayer: GameWindow, IPlayer
     protected Planet bluePlanet;
     protected List<double> noteTimes;
 
+    [Note("纹理")]
+    protected GLTexture swirlRed;
+    protected GLTexture swirlBlue;
+    protected GLTexture speedUp;
+    protected GLTexture speedDown;
+    protected GLShader textureShader;
+
     [Note("基础类型变量")]
     protected bool isStarted;
     protected double angle;
@@ -54,14 +63,20 @@ public class MainPlayer: GameWindow, IPlayer
     protected nint hwnd;
     protected double rotationSpeed;
     protected double currentTime;
-    
+    protected bool showPlanets;
+    protected int _fpsFrameCount;
+    protected double _fpsAccumulator;
+    protected double _fpsDisplay = 60.0;
+
     [Note("摄像机相关")]
     protected Vector2 cameraFromPos;
     protected Vector2 cameraToPos;
     protected float cameraTimer;
     protected float cameraSpeed = 2.0f;
+
+    private Queue<Action> mainThreadActions = new Queue<Action>();
     
-    public MainPlayer(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, string? levelPath) 
+    public MainPlayer(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings, string? levelPath = null) 
         : base(gameWindowSettings, nativeWindowSettings)
     {
         if (!string.IsNullOrEmpty(levelPath))
@@ -152,6 +167,19 @@ public class MainPlayer: GameWindow, IPlayer
     {
         base.OnMouseWheel(e);
         _imGuiController?.MouseScroll(e.Offset);
+        
+        // Handle camera zoom when not hovering over ImGui
+        if (initialized && camera2D != null && e.OffsetY != 0)
+        {
+            bool ioWantCaptureMouse = ImGui.GetIO().WantCaptureMouse;
+            if (!ioWantCaptureMouse)
+            {
+                float zoomFactor = e.OffsetY < 0 ? 1.25f : 0.8f;
+                float newZoom = camera2D.Zoom * zoomFactor;
+                newZoom = Math.Clamp(newZoom, 0.5f, 20f);
+                camera2D.Zoom = newZoom;
+            }
+        }
     }
     #endregion
     
@@ -174,11 +202,6 @@ public class MainPlayer: GameWindow, IPlayer
         
         try
         {
-            if (OperatingSystem.IsWindows())
-            {
-                hwnd = NativeAPI.GetForegroundWindow();
-            }
-            
             // Add progress callback
             // 添加进度回调
             LevelUtils.progressCallback += OnProgress;
@@ -194,7 +217,7 @@ public class MainPlayer: GameWindow, IPlayer
             if (camera2D == null)
             {
                 camera2D = new (ClientSize.X, ClientSize.Y);
-                camera2D.Zoom = 3;
+                camera2D.Zoom = 3f;  // 略微放大以适应显示
             }
             
             // Dispose old planets if they exist
@@ -210,6 +233,50 @@ public class MainPlayer: GameWindow, IPlayer
             
             shader = GLShader.CreateDefault2D();
             shader.Compile();
+
+            // Load texture shader
+            try
+            {
+                string texVertSource = AssetManager.LoadText(Path.Combine("shaders", "texture2d.vert"));
+                string texFragSource = AssetManager.LoadText(Path.Combine("shaders", "texture2d.frag"));
+                textureShader = new GLShader(texVertSource, texFragSource);
+                textureShader.Compile();
+                Console.WriteLine("Loaded texture shader");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to load texture shader: {ex.Message}");
+            }
+
+            // Load textures
+            try
+            {
+                swirlRed = new GLTexture();
+                swirlRed.Load("swirl_red_0.png");
+                swirlRed.SetFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+                Console.WriteLine($"Loaded swirl_red_0.png: {swirlRed.IsLoaded}, Size: {swirlRed.Width}x{swirlRed.Height}");
+
+                swirlBlue = new GLTexture();
+                swirlBlue.Load("swirl_blue.png");
+                swirlBlue.SetFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+                Console.WriteLine($"Loaded swirl_blue.png: {swirlBlue.IsLoaded}, Size: {swirlBlue.Width}x{swirlBlue.Height}");
+
+                speedUp = new GLTexture();
+                speedUp.Load("tile_rabbit_light_new0.png");
+                speedUp.SetFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+                Console.WriteLine($"Loaded tile_rabbit_light_new0.png: {speedUp.IsLoaded}, Size: {speedUp.Width}x{speedUp.Height}");
+
+                speedDown = new GLTexture();
+                speedDown.Load("tile_snail_light_new0.png");
+                speedDown.SetFilter(TextureFilter.Nearest, TextureFilter.Nearest);
+                Console.WriteLine($"Loaded tile_snail_light_new0.png: {speedDown.IsLoaded}, Size: {speedDown.Width}x{speedDown.Height}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to load textures: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+
             state = "初始化轨道";
             
             // Capture level reference to avoid race condition
@@ -243,7 +310,7 @@ public class MainPlayer: GameWindow, IPlayer
 
             playerFloors = await Task.Run(() => floors.Select(x =>
             {
-                //GLTexture texture = null;
+                var floor = new PlayerFloor(x);
                 Twirl twirl = null;
                 SetSpeed setSpeed = null;
                 foreach (var e in x.events)
@@ -251,9 +318,42 @@ public class MainPlayer: GameWindow, IPlayer
                     if (e.EventType == EventType.Twirl) twirl = e.ToEvent<Twirl>();
                     if (e.EventType == EventType.SetSpeed) setSpeed = e.ToEvent<SetSpeed>();
                 }
-                return new PlayerFloor(x);
+
+                bool hasTwirl = twirl != null;
+                bool hasSetSpeed = setSpeed != null;
+
+                if (hasTwirl)
+                {
+                    double prevAngle = x.exitAngle + 180.0;
+                    double entry = ((-prevAngle + 270.0) % 360.0 + 360.0) % 360.0;
+                    double exit  = ((-x.entryAngle + 90.0)  % 360.0 + 360.0) % 360.0;
+                    double raw = (exit - entry) * (x.isCW ? 1.0 : -1.0);
+                    raw = (raw % 360.0 + 360.0) % 360.0;
+                    if (Math.Abs(raw) < 1e-6 && !x.isMidspin) raw = 360.0;
+                    floor.texture = raw < 180.0 ? swirlRed : swirlBlue;
+                    floor.textureScale = 0.9f;
+                }
+                else if (hasSetSpeed)
+                {
+                    float ratio;
+                    if (setSpeed.SpeedType == EventEnums.SpeedType.Multiplier)
+                        ratio = (float)setSpeed.BpmMultiplier;
+                    else
+                    {
+                        float prevBpm = (float)(x.lastFloor?.bpm ?? x.bpm);
+                        ratio = prevBpm > 0 ? (float)setSpeed.BeatsPerMinute / prevBpm : 1f;
+                    }
+
+                    floor.texture = ratio > 1.05f ? speedUp : speedDown;
+                }
+                return floor;
             }).ToList());
             renderFloors = playerFloors.OrderBy(x => x.floor.renderOrder).ToList();
+
+            // Apply icon transforms (angle, flip) based on floor events
+            foreach (var pf in playerFloors)
+                ApplyFloorIconTransform(pf);
+
             currentFloor = floors[0];
             cameraFromPos = currentFloor.position;
             cameraToPos = currentFloor.position;
@@ -261,10 +361,6 @@ public class MainPlayer: GameWindow, IPlayer
             cameraTimer = 0f;
             initialized = true;
             state = "初始化完成，按空格播放，按R重新播放";
-            if (OperatingSystem.IsWindows())
-            {
-                NativeAPI.ShowWindow(hwnd, 3);
-            }
             
             // Remove progress callback
             // 移除进度回调
@@ -282,8 +378,55 @@ public class MainPlayer: GameWindow, IPlayer
         }
     }
 
+    private void ApplyFloorIconTransform(PlayerFloor floor)
+    {
+        if (floor.texture == null) return;
+
+        var x = floor.floor;
+        Twirl twirl = null;
+        SetSpeed setSpeed = null;
+        foreach (var e in x.events)
+        {
+            if (e.EventType == EventType.Twirl) twirl = e.ToEvent<Twirl>();
+            if (e.EventType == EventType.SetSpeed) setSpeed = e.ToEvent<SetSpeed>();
+        }
+
+        if (twirl != null)
+        {
+            bool trackIsCW = x.isCW;
+            int dir = trackIsCW ? 1 : -1;
+            floor.flipTexture = dir >= 0;
+            floor.flipTextureVertical = true;
+
+            double dirRad = (x.exitAngle * Math.PI) / 180.0;
+            floor.textureAngle = trackIsCW
+                ? (float)(dirRad - Math.PI / 3.0)
+                : (float)(dirRad + Math.PI + Math.PI / 6.0);
+            //floor.textureAngle -= 180;
+        }
+        else if (setSpeed != null)
+        {
+            floor.textureAngle = 0;
+            floor.flipTexture = false;
+            floor.flipTextureVertical = false;
+        }
+
+        floor.ApplyTextureTransform();
+    }
+
     public void UpdatePlayer(double delta)
     {
+        // FPS: update average every second
+        _fpsFrameCount++;
+        _fpsAccumulator += delta;
+        if (_fpsAccumulator >= 1.0)
+        {
+            _fpsDisplay = _fpsFrameCount / _fpsAccumulator;
+            _fpsFrameCount = 0;
+            _fpsAccumulator = 0;
+        }
+
+        if (mainThreadActions.TryDequeue(out var action)) action();
         // Early return if not initialized
         if (!initialized || camera2D == null)
             return;
@@ -291,7 +434,7 @@ public class MainPlayer: GameWindow, IPlayer
         // Manual camera control with mouse / 用鼠标手动控制摄像机
         if (MouseState.IsButtonDown(MouseButton.Left))
         {
-            Vector2 deltaMove = new Vector2(-MouseState.Delta.X, MouseState.Delta.Y);
+            Vector2 deltaMove = new Vector2(-MouseState.Delta.X, MouseState.Delta.Y) * camera2D.Zoom;
             camera2D.Position += deltaMove;
             cameraFromPos += deltaMove;
             cameraToPos += deltaMove;
@@ -382,30 +525,46 @@ public class MainPlayer: GameWindow, IPlayer
         // Only render if initialized
         if (!initialized || shader == null || camera2D == null)
             return;
-            
-        shader.Use();
-        camera2D.Render(shader);
-        
-        for (int i = 0; i < renderFloors.Count; i++)
+
+        // Render up to 500 floors after current position, farthest first
+        int start = currentIndex;
+        int end = Math.Min(playerFloors.Count, start + 500);
+        for (int i = end - 1; i >= start; i--)
         {
-            var floor = renderFloors[i];
-            if (camera2D.IsPointVisible(new (floor.floor.position.X,floor.floor.position.Y)))
+            var floor = playerFloors[i];
+            if (!camera2D.IsPointVisible(new (floor.floor.position.X, floor.floor.position.Y)))
+                continue;
+
+            // Render floor polygon
+            shader.Use();
+            camera2D.Render(shader);
+            floor.Render(shader);
+
+            // Render texture overlay on top of this floor
+            if (floor.texture != null && floor.texture.IsLoaded &&
+                textureShader != null && textureShader.IsCompiled)
             {
-                floor.Render(shader);
+                GL.Enable(EnableCap.Blend);
+                GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+                GL.ActiveTexture(TextureUnit.Texture0);
+                textureShader.Use();
+                camera2D.Render(textureShader);
+                textureShader.SetMatrix4x4("uModel", floor.GetTextureModelMatrix());
+                floor.RenderTextureOverlay(textureShader);
             }
         }
         // Update and render planets / 更新并渲染星球
         currentPlanet.Update((float)delta);
         lastPlanet.Update((float)delta);
-        
+
         currentPlanet.Position = currentFloor.position;
-        
+
         Vector2 offset = new Vector2(
             FloatMath.Cos(angle, true) * Floor.length * 2,
             FloatMath.Sin(angle, true) * Floor.length * 2
         );
         lastPlanet.Position = offset + currentFloor.position;
-    
+
         bluePlanet.Render(shader, camera2D);
         redPlanet.Render(shader, camera2D);
     }
@@ -545,9 +704,10 @@ public class MainPlayer: GameWindow, IPlayer
                 ImGui.Text("调试信息");
                 ImGui.Spacing();
                 
-                ImGui.Text($"FPS: {1.0 / UpdateTime:F1}");
+                ImGui.Text($"FPS: {_fpsDisplay:F0}");
                 ImGui.Text($"帧时间: {UpdateTime * 1000:F2} ms");
                 ImGui.Text($"窗口: {ClientSize.X} x {ClientSize.Y}");
+                ImGui.Text($"缩放: {camera2D?.Zoom:F1}x");
                 
                 ImGui.Separator();
                 
@@ -793,9 +953,9 @@ public class MainPlayer: GameWindow, IPlayer
         
         // Background panel / 背景面板
         // Layout: BPM line + Track line + Track progress bar + Time line + Time progress bar
-        // Total height: 4 text lines + 2 progress bars (with 5px offset each) + padding
+        // Total height: 5 text lines + 2 progress bars (with 5px offset each) + padding
         Vector2 panelMin = new Vector2(startX - 15, startY - 10);
-        Vector2 panelMax = new Vector2(ClientSize.X - padding + 10, startY + lineHeight * 4 + progressBarHeight * 2 + 10 + 10); // 4 lines + 2 bars + offsets + bottom padding
+        Vector2 panelMax = new Vector2(ClientSize.X - padding + 10, startY + lineHeight * 7 + progressBarHeight * 2 - 10); // 7 lines + 2 bars
         
         // Draw semi-transparent background / 绘制半透明背景
         drawList.AddRectFilled(
@@ -906,6 +1066,27 @@ public class MainPlayer: GameWindow, IPlayer
                 ImGui.GetColorU32(new Vector4(0.2f, 0.6f, 1.0f, 1.0f))  // Bottom left
             );
         }
+        
+        currentY += lineHeight;
+        
+        // Zoom display / 缩放显示
+        string zoomLabel = "Zoom: ";
+        string zoomValue = $"{camera2D?.Zoom:F1}x";
+        
+        drawList.AddText(new Vector2(startX, currentY), labelColor, zoomLabel);
+        float zoomLabelWidth = ImGui.CalcTextSize(zoomLabel).X;
+        drawList.AddText(new Vector2(startX + zoomLabelWidth, currentY), highlightColor, zoomValue);
+        currentY += lineHeight;
+        
+        // FPS display / 帧率显示
+        string fpsLabel = "FPS: ";
+        string fpsValue = $"{_fpsDisplay:F0}";
+        
+        drawList.AddText(new Vector2(startX, currentY), labelColor, fpsLabel);
+        float fpsLabelWidth = ImGui.CalcTextSize(fpsLabel).X;
+        drawList.AddText(new Vector2(startX + fpsLabelWidth, currentY), fpsValue.StartsWith("0") ? 
+            ImGui.GetColorU32(new Vector4(1f, 0.3f, 0.3f, 1f)) : 
+            ImGui.GetColorU32(new Vector4(0.3f, 1f, 0.3f, 1f)), fpsValue);
     }
     
     private string FormatTime(double seconds)
@@ -989,7 +1170,9 @@ public class MainPlayer: GameWindow, IPlayer
     {
         if (level == null)
             return;
-            
+        showPlanets = true;
+        angle = 0;
+        await Task.Delay(TimeSpan.FromMilliseconds(60000 / level.GetSetting<double>("bpm") * 4));
         int offset = level.GetSetting<int>("offset");
         
         // Start both audio tracks simultaneously with precise timing
@@ -1088,11 +1271,25 @@ public class MainPlayer: GameWindow, IPlayer
         bluePlanet = null;
         lastPlanet = null;
         currentPlanet = null;
+
+        // Dispose textures
+        swirlRed?.Dispose();
+        swirlBlue?.Dispose();
+        speedUp?.Dispose();
+        speedDown?.Dispose();
+        swirlRed = null;
+        swirlBlue = null;
+        speedUp = null;
+        speedDown = null;
         
         // Dispose shader
         shader?.Dispose();
         shader = null;
-        
+
+        // Dispose texture shader
+        textureShader?.Dispose();
+        textureShader = null;
+
         // Clear collections
         floors = null;
         noteTimes = null;
@@ -1102,10 +1299,12 @@ public class MainPlayer: GameWindow, IPlayer
     
     private void OpenLevelFile()
     {
-        string filePath = NativeAPI.OpenFileDialog(new NativeAPI.FileFilter
+        var filePath = FileDialog.GetFileDialog().OpenFile("打开关卡","",new OpenFileFilter()
         {
-            Name = "关卡文件",
-            Filter = new List<string> { "*.adofai" },
+            Filter = new Dictionary<string, List<string>>
+            {
+                { "关卡文件", ["adofai"] }
+            },
             IncludeAllFiles = true
         });
         

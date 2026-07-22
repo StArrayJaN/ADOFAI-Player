@@ -1,7 +1,7 @@
 using LibVLCSharp.Shared;
 using SharpFAI.Framework;
 
-namespace SharpFAI_Player.Framework;
+namespace SharpFAI.Editor.Core.Framework.Audio;
 
 /// <summary>
 /// Music implementation using LibVLC with full format support
@@ -36,7 +36,7 @@ public class Music : IMusic, IDisposable
 
             try
             {
-                Core.Initialize();
+                LibVLCSharp.Shared.Core.Initialize();
                 _libVLC = new LibVLC();
                 _libVLCInitialized = true;
             }
@@ -188,23 +188,23 @@ public class Music : IMusic, IDisposable
             // 同步解析媒体以确保元数据已加载
             var parseTask = _media.Parse(MediaParseOptions.ParseNetwork);
             parseTask.Wait(TimeSpan.FromSeconds(5)); // Wait up to 5 seconds
-            
+
             // Start playback briefly to initialize audio pipeline
             // 短暂开始播放以初始化音频管道
             _mediaPlayer.Play();
-            
+
             // Wait a bit for the audio pipeline to initialize
             // 等待一小段时间让音频管道初始化
-            System.Threading.Thread.Sleep(50);
-            
+            Thread.Sleep(50);
+
             // Pause instead of stop to keep the pipeline warm
             // 使用暂停而不是停止，以保持管道预热
             _mediaPlayer.Pause();
-            
+
             // Reset to beginning
             // 重置到开头
             _mediaPlayer.Time = 0;
-            
+
             _isPreloaded = true;
         }
         catch (Exception ex)

@@ -1,7 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
+using SharpFAI.Editor.Core.Platform.FileProvider;
 using SharpFAI.Editor.Core.UI;
-using SharpFAI.Editor.Platform.Native;
 
 namespace SharpFAI.Editor.Core.Editor;
 
@@ -127,10 +127,12 @@ public partial class EditorPlayer
             ImGui.SameLine();
             if (ImGuiControls.FixedButton("选择文件", 70, 0, () =>
             {
-                var filePath = NativeAPI.OpenFileDialog(new NativeAPI.FileFilter
+                var filePath = FileDialog.GetFileDialog().OpenFile("打开关卡","",new OpenFileFilter()
                 {
-                    Name = "音频文件",
-                    Filter = new List<string> { "*.mp3", "*.wav", "*.ogg", "*.flac" },
+                    Filter = new Dictionary<string, List<string>>
+                    {
+                        { "音频文件", ["*.mp3", "*.wav", "*.ogg", "*.flac"] }
+                    },
                     IncludeAllFiles = true
                 });
                 

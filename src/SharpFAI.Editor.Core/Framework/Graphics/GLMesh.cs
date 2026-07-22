@@ -169,7 +169,8 @@ public class GLMesh : Mesh
     }
     
     /// <summary>
-    /// Update vertex colors dynamically / 动态更新顶点颜�?    /// </summary>
+    /// Update vertex colors dynamically / 动态更新顶点颜色
+    /// </summary>
     public void UpdateColors(Vector4[] newColors)
     {
         if (newColors == null || newColors.Length != Colors.Length)
@@ -194,7 +195,33 @@ public class GLMesh : Mesh
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
         }
     }
-    
+
+    /// <summary>
+    /// Update texture coordinates dynamically / 动态更新纹理坐标
+    /// </summary>
+    public void UpdateTexCoords(Vector2[] newTexCoords)
+    {
+        if (newTexCoords == null || newTexCoords.Length != TexCoords.Length)
+            throw new ArgumentException("TexCoord array length must match existing texcoords");
+
+        TexCoords = newTexCoords;
+
+        if (_isGLInitialized && _texCoordVbo != 0)
+        {
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _texCoordVbo);
+
+            float[] texCoordData = new float[TexCoords.Length * 2];
+            for (int i = 0; i < TexCoords.Length; i++)
+            {
+                texCoordData[i * 2 + 0] = TexCoords[i].X;
+                texCoordData[i * 2 + 1] = TexCoords[i].Y;
+            }
+            GL.BufferData(BufferTarget.ArrayBuffer, texCoordData.Length * sizeof(float), texCoordData, BufferUsageHint.DynamicDraw);
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        }
+    }
+
     /// <summary>
     /// Delete OpenGL buffers / 删除OpenGL缓冲�?    /// </summary>
     private void DeleteBuffers()

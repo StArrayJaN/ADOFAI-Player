@@ -4,15 +4,15 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using SharpFAI_Player.Framework;
+using SharpFAI.Editor.Core.Framework.Audio;
 using SharpFAI.Editor.Core.Framework.Graphics;
 using SharpFAI.Editor.Core.Models;
+using SharpFAI.Editor.Core.Platform.FileProvider;
 using SharpFAI.Editor.Core.UI;
 using SharpFAI.Editor.Core.Util;
 using SharpFAI.Framework;
 using SharpFAI.Serialization;
 using SharpFAI.Util;
-using SharpFAI.Editor.Platform.Native;
 
 namespace SharpFAI.Editor.Core.Editor;
 
@@ -20,7 +20,7 @@ namespace SharpFAI.Editor.Core.Editor;
 /// 关卡编辑器 - 独立实现的简单编辑器
 /// Level Editor - Standalone simple editor implementation
 /// </summary>
-public partial class EditorPlayer : GameWindow
+public partial class EditorPlayer : GameWindow, IPlayer
 {
     #region ImGui Fields
     private ImGuiController? _imGuiController;
@@ -528,10 +528,12 @@ public partial class EditorPlayer : GameWindow
 
     private void OpenLevelFile()
     {
-        var filePath = NativeAPI.OpenFileDialog(new NativeAPI.FileFilter
+        var filePath = FileDialog.GetFileDialog().OpenFile("打开关卡","",new OpenFileFilter()
         {
-            Name = "关卡文件",
-            Filter = ["*.adofai"],
+            Filter = new Dictionary<string, List<string>>
+            {
+                { "关卡文件", ["adofai"] }
+            },
             IncludeAllFiles = true
         });
         
@@ -576,19 +578,21 @@ public partial class EditorPlayer : GameWindow
             return;
         }
         
-        // 生成默认文件�?
+        // 生成默认文件名
         string defaultFileName = "level.adofai";
         if (!string.IsNullOrEmpty(_levelPath))
         {
             defaultFileName = Path.GetFileName(_levelPath);
         }
         
-        var filePath = NativeAPI.SaveFileDialog(new NativeAPI.FileFilter
+        var filePath = FileDialog.GetFileDialog().SaveFile("保存关卡","",defaultFileName, new SaveFileFilter()
         {
-            Name = "关卡文件",
-            Filter = ["*.adofai"],
+            Filter = new Dictionary<string, string>
+            {
+                { "关卡文件", "*.adofai" }
+            },
             IncludeAllFiles = false
-        }, defaultFileName);
+        });
         
         if (!string.IsNullOrEmpty(filePath))
         {

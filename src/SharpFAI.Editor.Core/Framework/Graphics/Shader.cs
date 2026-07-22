@@ -1,6 +1,7 @@
 ﻿using System.Drawing;
 using System.Numerics;
 using SharpFAI.Framework;
+using SharpFAI.Editor.Core.Framework.Assets;
 
 namespace SharpFAI.Editor.Core.Framework.Graphics;
 
@@ -40,6 +41,21 @@ public class Shader : IShader
     protected Dictionary<string, int> _uniformLocations = new();
     protected Dictionary<string, int> _attributeLocations = new();
     protected bool _disposed;
+
+    /// <summary>
+    /// Load shader source from file / 从文件加载着色器源代码
+    /// </summary>
+    private static string LoadShaderFile(string fileName)
+    {
+        try
+        {
+            return AssetManager.LoadText(Path.Combine("shaders", fileName));
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to load shader file '{fileName}': {ex.Message}", ex);
+        }
+    }
 
     /// <summary>
     /// Create a shader with vertex and fragment source
@@ -172,48 +188,8 @@ public class Shader : IShader
     /// </summary>
     public static Shader CreateDefault2D()
     {
-        string vertexSource = @"
-#version 330 core
-
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec4 aColor;
-layout (location = 2) in vec2 aTexCoord;
-
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uProjection;
-
-out vec4 vColor;
-out vec2 vTexCoord;
-
-void main()
-{
-    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
-    vColor = aColor;
-    vTexCoord = aTexCoord;
-}
-";
-
-        string fragmentSource = @"
-#version 330 core
-
-in vec4 vColor;
-in vec2 vTexCoord;
-
-uniform sampler2D uTexture;
-uniform bool uUseTexture;
-
-out vec4 FragColor;
-
-void main()
-{
-    if (uUseTexture)
-        FragColor = texture(uTexture, vTexCoord) * vColor;
-    else
-        FragColor = vColor;
-}
-";
-
+        string vertexSource = LoadShaderFile("default2d.vert");
+        string fragmentSource = LoadShaderFile("default2d.frag");
         return new Shader(vertexSource, fragmentSource);
     }
     
@@ -222,37 +198,8 @@ void main()
     /// </summary>
     public static Shader CreateColorShader()
     {
-        string vertexSource = @"
-#version 330 core
-
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec4 aColor;
-
-uniform mat4 uModel;
-uniform mat4 uView;
-uniform mat4 uProjection;
-
-out vec4 vColor;
-
-void main()
-{
-    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
-    vColor = aColor;
-}
-";
-
-        string fragmentSource = @"
-#version 330 core
-
-in vec4 vColor;
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vColor;
-}
-";
-
+        string vertexSource = LoadShaderFile("color.vert");
+        string fragmentSource = LoadShaderFile("color.frag");
         return new Shader(vertexSource, fragmentSource);
     }
     
@@ -271,10 +218,6 @@ void main()
         GC.SuppressFinalize(this);
     }
     
-    ~Shader()
-    {
-        Dispose();
-    }
 }
 
 

@@ -8,15 +8,24 @@
         <ApplicationId>starray.sharpfai.editor</ApplicationId>
         <ApplicationVersion>1</ApplicationVersion>
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RunAOTCompilation>false</RunAOTCompilation>
+        <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+        <AndroidSdkDirectory>D:\Softwares\VSShared\Android\android-sdk</AndroidSdkDirectory>
+        <AndroidUseAssemblyStore>false</AndroidUseAssemblyStore>
     </PropertyGroup>
     <ItemGroup>
       <PackageReference Include="OpenTK" Version="4.9.4" />
       <PackageReference Include="SharpFAI" Version="1.1.3" />
+      <PackageReference Include="ImGui.NET" Version="1.91.5" />
       <AndroidNativeLibrary Include="libs\arm64-v8a\libcimgui.so" >
           <Abi>arm64-v8a</Abi>
       </AndroidNativeLibrary>
     </ItemGroup>
     <ItemGroup>
       <Folder Include="libs\" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\..\SharpFAI.Editor.Core\SharpFAI.Editor.Core.csproj" />
     </ItemGroup>
 </Project>

@@ -3,6 +3,8 @@
 
 using System.Runtime.CompilerServices;
 
+namespace SharpFAI.Editor.Core.Framework.Audio;
+
 public class AudioMerger
 {
     // 增量合成状态
@@ -156,12 +158,12 @@ public class AudioMerger
         
         // 检查是否可以使用增量合成
         bool canUseIncremental = _cachedMixedAudio != null && 
-                                  _cachedFormat != null &&
-                                  _lastInserts != null &&
-                                  _cachedMixedAudio.Length == baseAudio.Data.Length &&
-                                  _cachedFormat.SampleRate == format.SampleRate &&
-                                  _cachedFormat.BitsPerSample == format.BitsPerSample &&
-                                  _cachedFormat.Channels == format.Channels;
+                                 _cachedFormat != null &&
+                                 _lastInserts != null &&
+                                 _cachedMixedAudio.Length == baseAudio.Data.Length &&
+                                 _cachedFormat.SampleRate == format.SampleRate &&
+                                 _cachedFormat.BitsPerSample == format.BitsPerSample &&
+                                 _cachedFormat.Channels == format.Channels;
         
         if (canUseIncremental)
         {

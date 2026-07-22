@@ -12,8 +12,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="..\..\SharpFAI.Editor.Resources\**">
+      <Link>Resources\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\SharpFAI.Editor.Core\SharpFAI.Editor.Core.csproj" />
-    <ProjectReference Include="..\Abstractions\SharpFAI.Editor.Platform.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

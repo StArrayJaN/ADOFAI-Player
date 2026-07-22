@@ -445,10 +445,6 @@ public class Mesh : IMesh
         return result;
     }
     
-    ~Mesh()
-    {
-        Dispose();
-    }
 }
 
 

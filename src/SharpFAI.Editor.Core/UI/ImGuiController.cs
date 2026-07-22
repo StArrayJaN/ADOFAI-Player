@@ -230,11 +230,19 @@ void main()
         // This method is kept for compatibility but does nothing
     }
 
-    public void Update(GameWindow wnd, float deltaSeconds)
+    public void Update(GameWindow? wnd, float deltaSeconds)
     {
         _time += deltaSeconds;
         SetPerFrameImGuiData(deltaSeconds);
-        UpdateImGuiInput(wnd);
+
+        if (wnd != null)
+        {
+            UpdateImGuiInput(wnd);
+        }
+        else if (_time < 0.1f) // Only log once at startup
+        {
+            Console.WriteLine("[ImGuiController] WARNING: GameWindow is null in Update");
+        }
 
         // Start a new ImGui frame (must be called before any ImGui commands)
         try
@@ -243,7 +251,32 @@ void main()
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ImGui.NewFrame exception: {ex.Message}");
+            Console.WriteLine($"[ImGuiController] ImGui.NewFrame exception: {ex.Message}");
+        }
+    }
+
+    public void Update(SharpFAI.Editor.Core.Platform.Graphics.IGraphicsContext? graphicsContext, float deltaSeconds)
+    {
+        _time += deltaSeconds;
+        SetPerFrameImGuiData(deltaSeconds);
+
+        if (graphicsContext != null)
+        {
+            UpdateImGuiInput(graphicsContext);
+        }
+        else if (_time < 0.1f) // Only log once at startup
+        {
+            Console.WriteLine("[ImGuiController] WARNING: IGraphicsContext is null in Update");
+        }
+
+        // Start a new ImGui frame (must be called before any ImGui commands)
+        try
+        {
+            ImGui.NewFrame();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ImGuiController] ImGui.NewFrame exception: {ex.Message}");
         }
     }
     
@@ -299,13 +332,64 @@ void main()
             {
                 continue;
             }
-            
+
             ImGuiKey imguiKey = ConvertKey(key);
             if (imguiKey == ImGuiKey.None)
             {
                 continue;
             }
-            
+
+            bool isDown = keyboardState.IsKeyDown(key);
+            io.AddKeyEvent(imguiKey, isDown);
+        }
+
+        io.KeyCtrl = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
+        io.KeyAlt = keyboardState.IsKeyDown(Keys.LeftAlt) || keyboardState.IsKeyDown(Keys.RightAlt);
+        io.KeyShift = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
+        io.KeySuper = keyboardState.IsKeyDown(Keys.LeftSuper) || keyboardState.IsKeyDown(Keys.RightSuper);
+    }
+
+    private void UpdateImGuiInput(SharpFAI.Editor.Core.Platform.Graphics.IGraphicsContext graphicsContext)
+    {
+        var io = ImGui.GetIO();
+
+        var mouseState = graphicsContext.MouseState;
+        var keyboardState = graphicsContext.KeyboardState;
+
+        io.MouseDown[0] = mouseState.IsButtonDown(MouseButton.Left);
+        io.MouseDown[1] = mouseState.IsButtonDown(MouseButton.Right);
+        io.MouseDown[2] = mouseState.IsButtonDown(MouseButton.Middle);
+
+        var screenPoint = new Vector2i((int)mouseState.X, (int)mouseState.Y);
+        io.MousePos = new System.Numerics.Vector2(screenPoint.X, screenPoint.Y);
+
+        // 处理鼠标滚轮 - 使用 ScrollDelta 而不是 Scroll
+        // 因为 Scroll 是累积值，ScrollDelta 是每帧的增量
+        var scroll = mouseState.Scroll;
+        if (scroll.Y != 0)
+        {
+            io.MouseWheel = scroll.Y;
+        }
+        if (scroll.X != 0)
+        {
+            io.MouseWheelH = scroll.X;
+        }
+
+        // 正确处理按键事件：发送按下和释放事件
+        // Properly handle key events: send both press and release events
+        foreach (Keys key in Enum.GetValues(typeof(Keys)))
+        {
+            if (key == Keys.Unknown)
+            {
+                continue;
+            }
+
+            ImGuiKey imguiKey = ConvertKey(key);
+            if (imguiKey == ImGuiKey.None)
+            {
+                continue;
+            }
+
             bool isDown = keyboardState.IsKeyDown(key);
             io.AddKeyEvent(imguiKey, isDown);
         }

@@ -3,6 +3,11 @@ using SharpFAI.Framework;
 using SharpFAI.Util;
 
 namespace SharpFAI.Editor.Core.Framework.Graphics;
+
+/// <summary>
+/// 2D Camera implementation for orthographic projection
+/// 用于正交投影的2D相机实现
+/// </summary>
 public class Camera2D : ICamera
 {
     /// <summary>

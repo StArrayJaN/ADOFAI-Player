@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Numerics;
 using SharpFAI.Editor.Core.Framework.Graphics;
 using SharpFAI.Editor.Core.Framework.Particles;
@@ -57,7 +57,8 @@ public class Planet : IPlanet, IDisposable
     private bool _particlesPaused;
 
     /// <summary>
-    /// Create a new planet / 创建新行�?    /// </summary>
+    /// Create a new planet / 创建新行星
+    /// </summary>
     public Planet(Color color, bool trailEnabled = true)
     {
         Color = color;
@@ -73,13 +74,14 @@ public class Planet : IPlanet, IDisposable
 
         _lastPosition = Vector2.Zero;
         
-        // Create planet mesh - 转换 Color �?Vector4
+        // Create planet mesh - 转换 Color 为 Vector4
         Vector4 colorVec4 = new Vector4(color.R / 255.0f, color.G / 255.0f, color.B / 255.0f, color.A / 255.0f);
         _mesh = GLMesh.CreateCircle(1.0f, 32, colorVec4);
     }
 
     /// <summary>
-    /// Update planet state / 更新行星状�?    /// </summary>
+    /// Update planet state / 更新行星状态
+    /// </summary>
     public void Update(float deltaTime)
     {
         if (_trailEnabled && _particleSystem != null)
@@ -98,7 +100,9 @@ public class Planet : IPlanet, IDisposable
     /// <summary>
     /// Generate distance-based trail particles (similar to Unity Trail Renderer)
     /// Maintains continuous trail regardless of movement speed
-    /// 基于距离生成拖尾粒子（类似Unity Trail Renderer�?    /// 无论移动速度多快都能保持连贯的拖尾效�?    /// </summary>
+    /// 基于距离生成拖尾粒子（类似Unity Trail Renderer）
+    /// 无论移动速度多快都能保持连贯的拖尾效果
+    /// </summary>
     private void GenerateDistanceBasedTrail()
     {
         if (_firstUpdate)
@@ -183,14 +187,16 @@ public class Planet : IPlanet, IDisposable
     }
 
     /// <summary>
-    /// Move planet to target position / 移动行星到目标位�?    /// </summary>
+    /// Move planet to target position / 移动行星到目标位置
+    /// </summary>
     public void MoveTo(Vector2 target)
     {
         Position = target;
     }
 
     /// <summary>
-    /// Set trail density (particles per unit distance) / 设置拖尾密度（每单位距离的粒子数�?    /// </summary>
+    /// Set trail density (particles per unit distance) / 设置拖尾密度（每单位距离的粒子数）
+    /// </summary>
     public void SetParticlesPerUnit(float density)
     {
         _particlesPerUnit = Math.Max(0, density);
@@ -213,7 +219,8 @@ public class Planet : IPlanet, IDisposable
     }
 
     /// <summary>
-    /// Clear all particles / 清除所有粒�?    /// </summary>
+    /// Clear all particles / 清除所有粒子
+    /// </summary>
     public void ClearParticles()
     {
         _particleSystem?.Clear();
@@ -233,5 +240,4 @@ public class Planet : IPlanet, IDisposable
         _particleSystem?.Dispose();
     }
 }
-
 
